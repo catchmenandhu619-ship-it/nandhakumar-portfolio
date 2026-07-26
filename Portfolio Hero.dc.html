@@ -342,14 +342,11 @@
         <span style="font:800 3.5cqw/1 var(--f-display);letter-spacing:-0.045em;color:#4A3F30;mix-blend-mode:multiply;opacity:0.9;filter:blur(0.014cqw);text-shadow:0 0.05cqw 0 rgba(255,255,255,0.34);">NM</span>
         <span style="font:700 0.76cqw/1 var(--f-mono);letter-spacing:0.2em;color:#685C49;mix-blend-mode:multiply;opacity:0.72;white-space:nowrap;filter:blur(0.012cqw);">AI&nbsp;·&nbsp;SAAS&nbsp;·&nbsp;SLA</span>
       </div>
-      <div style="position:absolute;left:60.6%;top:54.2%;width:18.8%;height:23.8%;border-radius:0.45cqw;overflow:hidden;background:#CDC4B2;">
-        <canvas ref="{{ inlayCanvasRef }}" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
-        <div ref="{{ inlayRef }}" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:0.45cqw;padding:0 0.9cqw;">
-          <span ref="{{ nameRef }}" style="font:700 1.62cqw/1.06 var(--f-display);letter-spacing:-0.03em;color:#463A2C;mix-blend-mode:multiply;opacity:0.94;filter:blur(0.014cqw);text-shadow:0 0.045cqw 0 rgba(255,255,255,0.3);">NANDHAKUMAR M</span>
-          <span style="font:500 0.9cqw/1.32 var(--f-mono);letter-spacing:0.03em;color:#5E5342;mix-blend-mode:multiply;opacity:0.8;filter:blur(0.012cqw);">Senior Technical Support Engineer</span>
-          <span ref="{{ ruleRef }}" style="width:34%;height:0.07cqw;background:rgba(120,100,74,0.34);"></span>
-          <span ref="{{ metaRef }}" style="font:500 0.8cqw/1.45 var(--f-mono);letter-spacing:0.09em;color:#6B5F4C;mix-blend-mode:multiply;opacity:0.72;filter:blur(0.012cqw);text-align:center;">11+&nbsp;YRS&nbsp;·&nbsp;BENGALURU,&nbsp;INDIA<br />OPEN&nbsp;GLOBALLY&nbsp;·&nbsp;ANY&nbsp;LOCATION</span>
-        </div>
+      <div ref="{{ inlayRef }}" style="position:absolute;left:60.6%;top:54.2%;width:18.8%;height:23.8%;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:0.45cqw;padding:0 0.9cqw;border-radius:0.45cqw;background:linear-gradient(168deg, #CBC2AF 0%, #CDC4B2 38%, #D2CABA 70%, #D9D1C0 100%);box-shadow:inset 0.11cqw 0.22cqw 0.5cqw rgba(80,63,42,0.68), inset -0.09cqw -0.2cqw 0.46cqw rgba(255,255,255,0.85), inset 0 0.05cqw 0.1cqw rgba(255,255,255,0.5), 0.16cqw 0.26cqw 0.6cqw rgba(20,14,8,0.42), -0.04cqw -0.06cqw 0.14cqw rgba(255,255,255,0.3);">
+        <span ref="{{ nameRef }}" style="font:700 1.62cqw/1.06 var(--f-display);letter-spacing:-0.03em;color:#463A2C;mix-blend-mode:multiply;opacity:0.94;filter:blur(0.014cqw);text-shadow:0 0.045cqw 0 rgba(255,255,255,0.3);">NANDHAKUMAR M</span>
+        <span style="font:500 0.9cqw/1.32 var(--f-mono);letter-spacing:0.03em;color:#5E5342;mix-blend-mode:multiply;opacity:0.8;filter:blur(0.012cqw);">Senior Technical Support Engineer</span>
+        <span ref="{{ ruleRef }}" style="width:34%;height:0.07cqw;background:rgba(120,100,74,0.34);"></span>
+        <span ref="{{ metaRef }}" style="font:500 0.8cqw/1.45 var(--f-mono);letter-spacing:0.09em;color:#6B5F4C;mix-blend-mode:multiply;opacity:0.72;filter:blur(0.012cqw);text-align:center;">11+&nbsp;YRS&nbsp;·&nbsp;BENGALURU,&nbsp;INDIA<br />OPEN&nbsp;GLOBALLY&nbsp;·&nbsp;ANY&nbsp;LOCATION</span>
       </div>
     </div>
     <button ref="{{ replayRef }}" onClick="{{ onReplay }}" style="position:absolute;right:clamp(12px,1.4vw,22px);bottom:clamp(12px,1.4vw,22px);display:flex;align-items:center;gap:9px;padding:10px 16px;border:0;border-radius:999px;background:rgba(34,28,22,0.62);backdrop-filter:blur(6px);cursor:pointer;font:700 9px/1 var(--f-mono);letter-spacing:0.22em;color:#F6F1E8;" style-hover="background:#C9451A;">
@@ -842,7 +839,6 @@ class Component extends DCLogic {
     this.raf = requestAnimationFrame(this.loop);
     this.initScene();
     this.initCard();
-    this.initInlay3D();
     this.initProgress();
     this.initHeadlines();
     this.initTilt();
@@ -857,9 +853,6 @@ class Component extends DCLogic {
   componentWillUnmount() {
     cancelAnimationFrame(this.raf);
     if (this.sraf) cancelAnimationFrame(this.sraf);
-    if (this._inlayRaf) cancelAnimationFrame(this._inlayRaf);
-    if (this._inlayResize) window.removeEventListener('resize', this._inlayResize);
-    if (this._inlay3d) { this._inlay3d.geo.dispose(); this._inlay3d.mat.dispose(); this._inlay3d.renderer.dispose(); }
     if (this.io) this.io.disconnect();
     if (this.cardIo) this.cardIo.disconnect();
     if (this.revealIo) this.revealIo.disconnect();
@@ -1034,89 +1027,6 @@ class Component extends DCLogic {
       if (es[0].isIntersecting && !this.played) { this.played = 1; const p = v.play(); if (p && p.catch) p.catch(() => seekEnd()); }
     }, { threshold: 0.35 });
     this.cardIo.observe(v);
-  }
-
-  /* Loads three.js from CDN once, on demand — mirrors how support.js pulls
-     React/Babel the same way (self-contained page, no build step, no local
-     dependency). Current three.js ships ESM-only (no more UMD/global build),
-     so this uses a dynamic import rather than a classic <script> tag; that also
-     sidesteps the older global build's noisy webgl2-then-webgl1 fallback path. */
-  loadThree() {
-    if (window.THREE) return Promise.resolve(window.THREE);
-    if (this._threePromise) return this._threePromise;
-    this._threePromise = import('https://unpkg.com/three@0.170.0/build/three.module.js')
-      .then(mod => { window.THREE = mod; return mod; });
-    return this._threePromise;
-  }
-
-  /* The "NANDHAKUMAR M" card composited into the about-section video is a real
-     WebGL object, not a CSS box-shadow illusion: an extruded, bevelled rounded
-     rect lit by two directional lights plus ambient fill. Because the geometry
-     and lighting are genuine, the depth holds up under any viewing angle —
-     the card actually catches and loses light as it tilts, which a flat
-     div with a fixed gradient can only ever approximate at one angle. */
-  async initInlay3D() {
-    if (this._inlay3dInited) return; // the DC runtime mounts this component twice; guard like initFloating() does
-    this._inlay3dInited = true;
-    const canvas = this.r.inlayCanvas;
-    if (!canvas) return;
-    let THREE;
-    try { THREE = await this.loadThree(); } catch (err) { console.error('three.js load failed', err); return; }
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 10);
-    camera.position.set(0, 0, 4.2);
-
-    const w = 1.72, h = 1, rad = 0.1, depth = 0.12;
-    const shape = new THREE.Shape();
-    shape.moveTo(-w / 2 + rad, -h / 2);
-    shape.lineTo(w / 2 - rad, -h / 2);
-    shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + rad);
-    shape.lineTo(w / 2, h / 2 - rad);
-    shape.quadraticCurveTo(w / 2, h / 2, w / 2 - rad, h / 2);
-    shape.lineTo(-w / 2 + rad, h / 2);
-    shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - rad);
-    shape.lineTo(-w / 2, -h / 2 + rad);
-    shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + rad, -h / 2);
-    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.022, bevelSize: 0.022, bevelSegments: 4, curveSegments: 14 });
-    geo.center();
-    const mat = new THREE.MeshPhysicalMaterial({ color: 0xcdc4b2, roughness: 0.55, clearcoat: 0.35, clearcoatRoughness: 0.4, metalness: 0.04 });
-    const card = new THREE.Mesh(geo, mat);
-    scene.add(card);
-
-    scene.add(new THREE.AmbientLight(0xfff4e6, 0.65));
-    const key = new THREE.DirectionalLight(0xfff0dd, 1.1);
-    key.position.set(-2.2, 2.6, 3);
-    scene.add(key);
-    const fillLight = new THREE.DirectionalLight(0xcfd9ff, 0.28);
-    fillLight.position.set(2, -1.2, 1.6);
-    scene.add(fillLight);
-
-    const resize = () => {
-      const r = canvas.getBoundingClientRect();
-      if (!r.width || !r.height) return;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      renderer.setSize(r.width, r.height, false);
-      camera.aspect = r.width / r.height;
-      camera.updateProjectionMatrix();
-    };
-    this._inlayResize = resize;
-    resize();
-    window.addEventListener('resize', resize, { passive: true });
-
-    this._inlay3d = { renderer, scene, camera, geo, mat };
-    if (this.reduced) { renderer.render(scene, camera); return; }
-
-    let t = 0;
-    const loop = () => {
-      t += 0.01;
-      const mx = this.mx || 0, my = this.my || 0;
-      card.rotation.x = -my * 0.16 + Math.sin(t * 0.6) * 0.015;
-      card.rotation.y = mx * 0.22 + Math.sin(t * 0.5) * 0.02;
-      renderer.render(scene, camera);
-      this._inlayRaf = requestAnimationFrame(loop);
-    };
-    loop();
   }
 
   loadImg(src) {
@@ -1507,7 +1417,7 @@ class Component extends DCLogic {
       onNavPick: () => { if (this.state.menuOpen) this.setState({ menuOpen: false }); },
       sceneRef: this.ref('scene'),
       cardRef: this.ref('card'), vidRef: this.ref('vid'), slotsRef: this.ref('slots'), replayRef: this.ref('replay'),
-      inlayRef: this.ref('inlay'), inlayCanvasRef: this.ref('inlayCanvas'), nameRef: this.ref('name'), ruleRef: this.ref('rule'), metaRef: this.ref('meta'),
+      inlayRef: this.ref('inlay'), nameRef: this.ref('name'), ruleRef: this.ref('rule'), metaRef: this.ref('meta'),
       onReplay: () => {
         const v = this.r.vid;
         if (!v) return;
