@@ -400,6 +400,7 @@
     <span style="font:700 11px/1 var(--f-mono);letter-spacing:0.2em;color:var(--acc-ink,#C33F14);">[&nbsp;04&nbsp;]</span>
     <span style="font:500 11px/1 var(--f-mono);letter-spacing:0.2em;color:#756753;">SKILLS&nbsp;&amp;&nbsp;TECHNOLOGIES</span>
     <span class="rule-draw" style="flex:1;height:1px;background:#DED2C0;"></span>
+    <canvas ref="{{ badge3dRef }}" aria-hidden="true" style="width:44px;height:44px;flex:0 0 auto;display:block;"></canvas>
   </div>
   <div style="margin:0 0 clamp(30px,4vh,58px);">
   <div style="position:relative;border-radius:30px;overflow:hidden;background:#E9C89D;box-shadow:0 34px 90px rgba(0,0,0,0.55);">
@@ -848,11 +849,118 @@ class Component extends DCLogic {
     const go = () => this.initReveal();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(go).catch(go);
     else go();
+    this.initScrubParallax();
+    this.initBadge3D();
+  }
+
+  /* A small always-on WebGL accent: a real extruded/rounded 3D shape spinning
+     slowly beside the skills eyebrow. Guarded against the DC runtime's double
+     mount from the very first line (learned the hard way last time), loaded
+     via ES module import (three.js dropped the classic UMD build at r150+),
+     and disposed in componentWillUnmount. */
+  async initBadge3D() {
+    if (this._badge3dInited) return;
+    this._badge3dInited = true;
+    const canvas = this.r.badge3d;
+    if (!canvas) return;
+    let THREE;
+    try {
+      const mod = await import('https://unpkg.com/three@0.170.0/build/three.module.js');
+      THREE = mod;
+    } catch (err) { console.error('three.js load failed', err); return; }
+
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 10);
+    camera.position.set(0, 0, 3.4);
+
+    const geo = new THREE.IcosahedronGeometry(0.85, 0);
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xd9552a, roughness: 0.35, metalness: 0.15, clearcoat: 0.5, clearcoatRoughness: 0.3, flatShading: true });
+    const shape = new THREE.Mesh(geo, mat);
+    scene.add(shape);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const key = new THREE.DirectionalLight(0xfff2e6, 1.2);
+    key.position.set(-2, 2.4, 2.6);
+    scene.add(key);
+    const fillLight = new THREE.DirectionalLight(0xcfe0ff, 0.35);
+    fillLight.position.set(2, -1, 1.4);
+    scene.add(fillLight);
+
+    const resize = () => {
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(r.width, r.height, false);
+      camera.aspect = r.width / r.height;
+      camera.updateProjectionMatrix();
+    };
+    this._badge3dResize = resize;
+    resize();
+    window.addEventListener('resize', resize, { passive: true });
+
+    this._badge3d = { renderer, scene, camera, geo, mat };
+    if (this.reduced) { renderer.render(scene, camera); return; }
+
+    let t = 0;
+    const loop = () => {
+      t += 0.012;
+      shape.rotation.x = t * 0.6;
+      shape.rotation.y = t * 0.9;
+      renderer.render(scene, camera);
+      this._badge3dRaf = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+
+  /* Loads GSAP + ScrollTrigger from CDN once, on demand. GSAP still ships a
+     classic UMD/global build (unlike current three.js), so a plain <script>
+     tag is reliable here — no ESM juggling needed. */
+  loadGsap() {
+    if (window.gsap && window.ScrollTrigger) return Promise.resolve(window.gsap);
+    if (this._gsapPromise) return this._gsapPromise;
+    const load = src => new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    this._gsapPromise = load('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js')
+      .then(() => load('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js'))
+      .then(() => { window.gsap.registerPlugin(window.ScrollTrigger); return window.gsap; });
+    return this._gsapPromise;
+  }
+
+  /* GSAP ScrollTrigger scrub parallax on the two big showcase images (skills
+     scene, timeline image) — genuine scroll-tied motion, not a one-time
+     reveal, and not the hand-rolled rAF parallax removed earlier (GSAP's own
+     scrub interpolation doesn't fight CSS transitions the way raw per-frame
+     style writes did). Independent of the reveal system below — different
+     elements, different job (continuous vs. one-time). */
+  async initScrubParallax() {
+    if (this.reduced || this._scrubInited) return;
+    this._scrubInited = true;
+    let gsap;
+    try { gsap = await this.loadGsap(); } catch (err) { console.error('gsap load failed', err); return; }
+    const scrubTarget = (selector, opts) => {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      gsap.set(el, { transformPerspective: 1000 });
+      gsap.to(el, {
+        ease: 'none',
+        scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: 0.6 },
+        ...opts
+      });
+    };
+    scrubTarget('#skills canvas', { yPercent: -8, scale: 1.06, rotationX: 3 });
+    scrubTarget('#experience img[src*="popcard-final"]', { yPercent: -6, rotationY: -2 });
   }
 
   componentWillUnmount() {
     cancelAnimationFrame(this.raf);
     if (this.sraf) cancelAnimationFrame(this.sraf);
+    if (this._badge3dRaf) cancelAnimationFrame(this._badge3dRaf);
+    if (this._badge3dResize) window.removeEventListener('resize', this._badge3dResize);
+    if (this._badge3d) { this._badge3d.geo.dispose(); this._badge3d.mat.dispose(); this._badge3d.renderer.dispose(); }
     if (this.io) this.io.disconnect();
     if (this.cardIo) this.cardIo.disconnect();
     if (this.revealIo) this.revealIo.disconnect();
@@ -1228,7 +1336,13 @@ class Component extends DCLogic {
 
   /* Staggered, depth-aware reveal. The markup already carried data-reveal on 36
      elements but nothing ever observed them — this wires them up. */
-  initReveal() {
+  /* One decision point for how reveals animate — never two competing systems
+     on the same elements. Tries to upgrade to a real 3D GSAP ScrollTrigger
+     reveal (perspective + rotationX + z-depth); if the CDN fails or is slow,
+     falls straight back to the plain CSS transition already declared on
+     [data-reveal] via the existing IntersectionObserver path. Async, but this
+     was already invoked through a promise chain (webfonts), so no new risk. */
+  async initReveal() {
     const els = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
     if (!els.length) return;
     if (this.reduced || !window.IntersectionObserver) {
@@ -1242,6 +1356,28 @@ class Component extends DCLogic {
       order.set(p, i + 1);
       el.style.setProperty('--rd', Math.min(i * 55, 320) + 'ms');
     });
+
+    let gsap = null;
+    try { gsap = await this.loadGsap(); } catch (err) { console.error('gsap load failed', err); }
+
+    if (gsap && window.ScrollTrigger) {
+      const ScrollTrigger = window.ScrollTrigger;
+      els.forEach(el => {
+        gsap.set(el, { autoAlpha: 0, y: 34, z: -120, rotationX: -10, filter: 'blur(5px)', transformPerspective: 900, transformOrigin: '50% 100%' });
+        ScrollTrigger.create({
+          trigger: el,
+          start: 'top 89%',
+          once: true,
+          onEnter: () => {
+            el.classList.add('is-in');
+            gsap.to(el, { autoAlpha: 1, y: 0, z: 0, rotationX: 0, filter: 'blur(0px)', duration: 0.85, ease: 'power3.out' });
+            this.countUp(el);
+          }
+        });
+      });
+      return;
+    }
+
     this.revealIo = new IntersectionObserver(ents => {
       ents.forEach(en => {
         if (!en.isIntersecting) return;
@@ -1336,24 +1472,46 @@ class Component extends DCLogic {
       g.className = 'glare';
       card.appendChild(g);
       const base = card.style.boxShadow || '';
+      // GSAP quickTo gives inertial, physically-eased motion (a real spring-like
+      // settle rather than a fixed CSS transition curve) — used opportunistically
+      // once the CDN load finishes; falls back to the plain CSS path until then
+      // so hovering never has to wait on a network fetch.
+      let qx = null, qy = null, qz = null, qs = null;
+      const ensureQuick = () => {
+        if (qx || !window.gsap) return;
+        gsap.set(card, { transformPerspective: 880 });
+        qx = gsap.quickTo(card, 'rotationX', { duration: 0.5, ease: 'power3.out' });
+        qy = gsap.quickTo(card, 'rotationY', { duration: 0.5, ease: 'power3.out' });
+        qz = gsap.quickTo(card, 'z', { duration: 0.5, ease: 'power3.out' });
+        qs = gsap.quickTo(card, 'scale', { duration: 0.5, ease: 'power3.out' });
+      };
       const move = e => {
         const r = card.getBoundingClientRect();
         if (!r.width) return;
         const px = (e.clientX - r.left) / r.width;
         const py = (e.clientY - r.top) / r.height;
-        card.style.transition = 'transform .16s linear, box-shadow .3s ease';
-        card.style.transform =
-          'perspective(880px) rotateX(' + ((0.5 - py) * 12).toFixed(2) + 'deg)' +
-          ' rotateY(' + ((px - 0.5) * 15).toFixed(2) + 'deg)' +
-          ' translate3d(0,-11px,34px) scale(1.024)';
-        card.style.boxShadow = base + ', 0 34px 70px rgba(0,0,0,.30)';
+        ensureQuick();
+        if (qx) {
+          card.style.boxShadow = base + ', 0 34px 70px rgba(0,0,0,.30)';
+          qx((0.5 - py) * 12); qy((px - 0.5) * 15); qz(34); qs(1.024);
+        } else {
+          card.style.transition = 'transform .16s linear, box-shadow .3s ease';
+          card.style.transform =
+            'perspective(880px) rotateX(' + ((0.5 - py) * 12).toFixed(2) + 'deg)' +
+            ' rotateY(' + ((px - 0.5) * 15).toFixed(2) + 'deg)' +
+            ' translate3d(0,-11px,34px) scale(1.024)';
+          card.style.boxShadow = base + ', 0 34px 70px rgba(0,0,0,.30)';
+        }
         g.style.setProperty('--gx', (px * 100).toFixed(1) + '%');
         g.style.setProperty('--gy', (py * 100).toFixed(1) + '%');
       };
       const leave = () => {
-        card.style.transition = 'transform .8s var(--ease-out), box-shadow .6s ease';
-        card.style.transform = '';
         card.style.boxShadow = base;
+        if (qx) { qx(0); qy(0); qz(0); qs(1); }
+        else {
+          card.style.transition = 'transform .8s var(--ease-out), box-shadow .6s ease';
+          card.style.transform = '';
+        }
       };
       card.addEventListener('pointermove', move, { passive: true });
       card.addEventListener('pointerleave', leave, { passive: true });
@@ -1415,7 +1573,7 @@ class Component extends DCLogic {
       menuOpen: this.state.menuOpen ? 'true' : 'false',
       onMenu: () => this.setState(s => ({ menuOpen: !s.menuOpen })),
       onNavPick: () => { if (this.state.menuOpen) this.setState({ menuOpen: false }); },
-      sceneRef: this.ref('scene'),
+      sceneRef: this.ref('scene'), badge3dRef: this.ref('badge3d'),
       cardRef: this.ref('card'), vidRef: this.ref('vid'), slotsRef: this.ref('slots'), replayRef: this.ref('replay'),
       inlayRef: this.ref('inlay'), nameRef: this.ref('name'), ruleRef: this.ref('rule'), metaRef: this.ref('meta'),
       onReplay: () => {
