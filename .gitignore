@@ -1,4 +1,5 @@
 .vercel
+.vercel-cli-config
 .claude
 .agents
 .impeccable
